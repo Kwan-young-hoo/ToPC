@@ -3,7 +3,6 @@ import subprocess
 import shlex
 from common.log import *
 from common.env import *
-from common.misc import *
 from common.request import *
 from uci_data import *
 
@@ -21,6 +20,32 @@ UCI_COMMIT_CMD="uci commit "
 
 LOG_MODULE_PUCI="puci"
 
+def subprocess_open(command):
+	popen = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+	(stdoutdata, stderrdata) = popen.communicate()
+	return stdoutdata, stderrdata
+
+def subprocess_open_when_shell_false(command):
+	popen = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	(stdoutdata, stderrdata) = popen.communicate()
+	return stdoutdata, stderrdata
+
+def subprocess_open_when_shell_false_with_shelx(command):
+	popen = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	(stdoutdata, stderrdata) = popen.communicate()
+	return stdoutdata, stderrdata
+
+def subprocess_pipe(cmd_list):
+	prev_stdin = None
+	last_p = None
+
+	for str_cmd in cmd_list:
+		cmd = str_cmd.split()
+		last_p = subprocess.Popen(cmd, stdin=prev_stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		prev_stdin = last_p.stdout
+
+	(stdoutdata, stderrdata) = last_p.communicate()
+	return stdoutdata, stderrdata
 
 
 def restart_uci_config_module(config_file, ifname):
@@ -145,6 +170,10 @@ class ConfigUCI:
 
             if map_val[0] == CONFIG_TYPE_SCALAR:
                 self.set_uci_config_scalar(map_val[1], str(map_val[2]))
+
+            elif map_val[1].split('.')[2] == "ports":
+                self.set_uci_config_scalar(map_val[1], str(map_val[2]))
+
             else:
                 self.set_uci_config_list(map_val[1], map_val[2])
 
@@ -180,6 +209,11 @@ class ConfigUCI:
                     if token[1][0] == "'":
                         token[1] = token[1][1:-1]
                     map_val[2] = token[1]
+
+                elif token[0].split('.')[2] == "ports":
+                    value = token[1].strip("'")
+                    map_val[2] = value.split()
+
                 else:
                     # change uci format ['A' 'B' 'C'] string to ['A', 'B', 'C'] list.
                     list_value = token[1].split(' ')
